@@ -106,6 +106,71 @@ class OneInchFusionService {
 
     return response.data;
   }
+
+  async buildLimitOrder(params: any): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.0/${params.fromChainId}/order/build`;
+
+    const response: AxiosResponse = await axios.post(
+      url,
+      {
+        makerAsset: params.makerAsset,
+        takerAsset: params.takerAsset,
+        maker: params.maker,
+        allowedSender: params.allowedSender || ethers.ZeroAddress,
+        makingAmount: params.makingAmount,
+        takingAmount: params.takingAmount,
+        expiration: params.expiration,
+        salt: params.salt,
+        interactions: "0x",
+        permit: "0x",
+        preInteraction: "0x",
+        postInteraction: "0x",
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return response.data;
+  }
+
+  async signOrder(
+    orderData: any,
+    privateKey: string,
+    chainId: string
+  ): Promise<any> {
+    const wallet = this.getWallet(privateKey, chainId);
+
+    const domain = {
+      name: "1inch Fusion+",
+      version: "1",
+      chainId: parseInt(chainId),
+      verifyingContract: orderData.verifyingContract,
+    };
+
+    const types = {
+      Order: [
+        { name: "salt", type: "uint256" },
+        { name: "maker", type: "address" },
+        { name: "receiver", type: "address" },
+        { name: "makerAsset", type: "address" },
+        { name: "takerAsset", type: "address" },
+        { name: "makingAmount", type: "uint256" },
+        { name: "takingAmount", type: "uint256" },
+        { name: "makerTraits", type: "uint256" },
+      ],
+    };
+
+    const signature = await wallet.signTypedData(
+      domain,
+      types,
+      orderData.order
+    );
+    return { ...orderData, signature };
+  }
 }
 
 // Init service
