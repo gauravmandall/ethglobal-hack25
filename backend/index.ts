@@ -689,7 +689,6 @@ app.post(
   }
 );
 
-// Create order endpoint - returns unsigned order data for client-side signing
 app.post(
   "/api/orders/create",
   [
@@ -804,7 +803,6 @@ app.post(
   }
 );
 
-// Submit signed order endpoint
 app.post(
   "/api/orders/submit",
   [
