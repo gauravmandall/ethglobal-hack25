@@ -180,9 +180,9 @@ class OneInchFusionService {
     console.log(`📋 Build order params:`, {
       quoteId: params.quoteId,
       secretsHashList: params.secretsHashList,
-      permit: params.permit,
-      isPermit2: params.isPermit2,
-      receiver: params.receiver,
+      //   permit: params.permit,
+      //   isPermit2: params.isPermit2,
+      //   receiver: params.receiver,
       preset: params.preset,
     });
 
@@ -191,9 +191,9 @@ class OneInchFusionService {
         url,
         {
           secretsHashList: params.secretsHashList,
-          permit: params.permit || "string",
+          permit: params.permit,
           isPermit2: params.isPermit2 || false,
-          receiver: params.receiver || "string",
+          receiver: params.receiver,
           preset: params.preset || "fast",
         },
         {
