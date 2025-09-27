@@ -87,14 +87,15 @@ class OneInchFusionService {
     dstToken: string;
     amount: string;
   }): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/quoter/v1.0/${params.fromChainId}/quote`;
+    const url = `${this.baseUrl}/fusion-plus/quoter/v1.1//quote/receive`;
 
     const response: AxiosResponse = await axios.get(url, {
       params: {
+        srcChain: params.fromChainId,
+        dstChain: params.toChainId,
         srcToken: params.srcToken,
         dstToken: params.dstToken,
         amount: params.amount,
-        dstChainId: params.toChainId,
         enableEstimate: true,
         fee: "0",
       },
@@ -108,7 +109,7 @@ class OneInchFusionService {
   }
 
   async buildLimitOrder(params: any): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/relayer/v1.0/${params.fromChainId}/order/build`;
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${params.fromChainId}/order/build`;
 
     const response: AxiosResponse = await axios.post(
       url,
@@ -170,6 +171,82 @@ class OneInchFusionService {
       orderData.order
     );
     return { ...orderData, signature };
+  }
+
+  async submitOrder(signedOrder: any, chainId: string): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order`;
+
+    const response: AxiosResponse = await axios.post(
+      url,
+      {
+        order: signedOrder.order,
+        signature: signedOrder.signature,
+        extension: signedOrder.extension || "0x",
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return response.data;
+  }
+
+  async getOrderStatus(orderHash: string, chainId: string): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/status/${orderHash}`;
+
+    const response: AxiosResponse = await axios.get(url, {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+
+    return response.data;
+  }
+
+  async cancelOrder(
+    orderHash: string,
+    chainId: string,
+    privateKey: string
+  ): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/cancel`;
+
+    const wallet = this.getWallet(privateKey, chainId);
+    const message = ethers.solidityPackedKeccak256(["bytes32"], [orderHash]);
+    const signature = await wallet.signMessage(ethers.getBytes(message));
+
+    const response: AxiosResponse = await axios.post(
+      url,
+      { orderHash, signature },
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return response.data;
+  }
+
+  async getActiveOrders(
+    maker: string,
+    chainId: string,
+    limit = 10,
+    offset = 0
+  ): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/active`;
+
+    const response: AxiosResponse = await axios.get(url, {
+      params: { maker, limit, offset },
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+
+    return response.data;
+  }
+
+  generateSalt(): string {
+    return ethers.getBigInt(ethers.hexlify(ethers.randomBytes(32))).toString();
   }
 }
 
