@@ -24,12 +24,20 @@ interface CreateOrderRequest {
   srcToken: string;
   dstToken: string;
   amount: string;
-  privateKey: string;
   walletAddress: string;
   permit?: string;
   isPermit2?: boolean;
   receiver?: string;
   preset?: string;
+}
+
+interface SubmitOrderRequest {
+  order: any;
+  srcChainId: number;
+  signature: string;
+  extension?: string;
+  quoteId: string;
+  secretHashes: string[];
 }
 
 const app = express();
@@ -681,8 +689,9 @@ app.post(
   }
 );
 
+// Create order endpoint - returns unsigned order data for client-side signing
 app.post(
-  "/api/orders",
+  "/api/orders/create",
   [
     body("fromChainId").isNumeric().withMessage("fromChainId must be a number"),
     body("toChainId").isNumeric().withMessage("toChainId must be a number"),
@@ -693,7 +702,6 @@ app.post(
       .isEthereumAddress()
       .withMessage("Invalid destination token address"),
     body("amount").isString().withMessage("Amount must be a string"),
-    body("privateKey").isString().withMessage("Private key is required"),
     body("walletAddress")
       .isEthereumAddress()
       .withMessage("Wallet address is required"),
@@ -715,7 +723,6 @@ app.post(
         srcToken,
         dstToken,
         amount,
-        privateKey,
         walletAddress,
         permit,
         isPermit2,
@@ -724,7 +731,6 @@ app.post(
       } = req.body;
 
       const fromChainStr = String(fromChainId);
-      const wallet = fusionService.getWallet(privateKey, fromChainStr);
 
       const quote = await fusionService.getQuote({
         fromChainId: fromChainStr,
@@ -762,31 +768,83 @@ app.post(
         preset,
       });
 
-      // Step 3: Sign the order
-      const signedOrder = await fusionService.signOrder(
-        order,
-        privateKey,
-        fromChainStr
-      );
+      res.json({
+        success: true,
+        message: "Order created successfully - ready for signing",
+        data: {
+          order: order.order,
+          verifyingContract: order.verifyingContract,
+          extension: order.extension,
+          quoteId: quote.quoteId,
+          secretHashes: secretsHashList,
+          srcChainId: parseInt(fromChainStr),
+          domain: {
+            name: "1inch Fusion+",
+            version: "1",
+            chainId: parseInt(fromChainStr),
+            verifyingContract: order.verifyingContract,
+          },
+          types: {
+            Order: [
+              { name: "salt", type: "uint256" },
+              { name: "maker", type: "address" },
+              { name: "receiver", type: "address" },
+              { name: "makerAsset", type: "address" },
+              { name: "takerAsset", type: "address" },
+              { name: "makingAmount", type: "uint256" },
+              { name: "takingAmount", type: "uint256" },
+              { name: "makerTraits", type: "uint256" },
+            ],
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
-      // Step 4: Submit the order
+// Submit signed order endpoint
+app.post(
+  "/api/orders/submit",
+  [
+    body("order").isObject().withMessage("Order data is required"),
+    body("srcChainId").isNumeric().withMessage("srcChainId must be a number"),
+    body("signature").isString().withMessage("Signature is required"),
+    body("extension").optional().isString(),
+    body("quoteId").isString().withMessage("Quote ID is required"),
+    body("secretHashes")
+      .isArray()
+      .withMessage("Secret hashes array is required"),
+    handleValidationErrors,
+  ],
+  async (
+    req: Request<{}, any, SubmitOrderRequest>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { order, srcChainId, signature, extension, quoteId, secretHashes } =
+        req.body;
+
+      // Submit the signed order
       const result = await fusionService.submitOrder({
-        order: signedOrder.order,
-        srcChainId: parseInt(fromChainStr),
-        signature: signedOrder.signature,
-        extension: signedOrder.extension,
-        quoteId: quote.quoteId,
-        secretHashes: secretsHashList,
+        order,
+        srcChainId,
+        signature,
+        extension,
+        quoteId,
+        secretHashes,
       });
 
       res.json({
         success: true,
-        message: "Limit order created successfully",
+        message: "Signed order submitted successfully",
         data: {
           orderHash: result.orderHash,
-          order: signedOrder.order,
-          signature: signedOrder.signature,
-          quoteId: quote.quoteId,
+          order,
+          signature,
+          quoteId,
         },
       });
     } catch (error) {
