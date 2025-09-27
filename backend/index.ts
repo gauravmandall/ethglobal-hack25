@@ -9,6 +9,7 @@ import rateLimit from "express-rate-limit";
 import { body, param, validationResult } from "express-validator";
 import axios, { type AxiosResponse } from "axios";
 import { ethers } from "ethers";
+import crypto from "crypto";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -25,7 +26,6 @@ interface CreateOrderRequest {
   amount: string;
   privateKey: string;
   walletAddress: string;
-  secretsHashList: string[];
   permit?: string;
   isPermit2?: boolean;
   receiver?: string;
@@ -697,9 +697,6 @@ app.post(
     body("walletAddress")
       .isEthereumAddress()
       .withMessage("Wallet address is required"),
-    body("secretsHashList")
-      .isArray()
-      .withMessage("Secrets hash list is required"),
     body("permit").optional().isString(),
     body("isPermit2").optional().isBoolean(),
     body("receiver").optional().isString(),
@@ -720,7 +717,6 @@ app.post(
         amount,
         privateKey,
         walletAddress,
-        secretsHashList,
         permit,
         isPermit2,
         receiver,
@@ -743,7 +739,20 @@ app.post(
         throw new Error("No quoteId received from quote API");
       }
 
-      // Step 2: Build limit order using quoteId
+      // Extract secretsCount from the quote response based on preset
+      const selectedPreset = preset || quote.recommendedPreset || "fast";
+      const secretsCount = quote.presets[selectedPreset]?.secretsCount || 5;
+
+      // Generate secrets hash array with the required number of elements
+      const secretsHashList = Array.from(
+        { length: secretsCount },
+        (_, index) => {
+          // Generate a random 32-byte hash for each secret
+          const randomBytes = crypto.randomBytes(32);
+          return "0x" + randomBytes.toString("hex");
+        }
+      );
+
       const order = await fusionService.buildLimitOrder({
         quoteId: quote.quoteId,
         secretsHashList,
