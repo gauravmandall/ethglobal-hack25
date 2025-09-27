@@ -79,6 +79,33 @@ class OneInchFusionService {
     }
     return this.wallets.get(key)!;
   }
+
+  async getQuote(params: {
+    fromChainId: string;
+    toChainId: string;
+    srcToken: string;
+    dstToken: string;
+    amount: string;
+  }): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/quoter/v1.0/${params.fromChainId}/quote`;
+
+    const response: AxiosResponse = await axios.get(url, {
+      params: {
+        srcToken: params.srcToken,
+        dstToken: params.dstToken,
+        amount: params.amount,
+        dstChainId: params.toChainId,
+        enableEstimate: true,
+        fee: "0",
+      },
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    return response.data;
+  }
 }
 
 // Init service
@@ -122,7 +149,49 @@ const errorHandler = (
   });
 };
 
+app.use(errorHandler);
+
 // Routes
 app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
+
+app.post(
+  "/api/quote",
+  [
+    body("fromChainId").isNumeric(),
+    body("toChainId").isNumeric(),
+    body("srcToken").isEthereumAddress(),
+    body("dstToken").isEthereumAddress(),
+    body("amount").isString(),
+    handleValidationErrors,
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fromChainId, toChainId, srcToken, dstToken, amount } = req.body;
+      const quote = await fusionService.getQuote({
+        fromChainId: fromChainId.toString(),
+        toChainId: toChainId.toString(),
+        srcToken,
+        dstToken,
+        amount,
+      });
+      res.json({ success: true, data: quote });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.use("*", (req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 1inch Fusion+ API server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`📝 API Base URL: http://localhost:${PORT}/api`);
+});
+
+export default app;
