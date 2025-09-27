@@ -13,15 +13,32 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+interface CancelOrderBody {
+  privateKey: string;
+}
+
+interface CreateOrderRequest {
+  fromChainId: number | string;
+  toChainId: number | string;
+  srcToken: string;
+  dstToken: string;
+  amount: string;
+  privateKey: string;
+  walletAddress: string;
+  secretsHashList: string[];
+  permit?: string;
+  isPermit2?: boolean;
+  receiver?: string;
+  preset?: string;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -31,7 +48,7 @@ app.use("/api/", limiter);
 
 class OneInchFusionService {
   private apiKey: string;
-  private baseUrl: string;
+  public baseUrl: string;
   private providers: Map<string, ethers.JsonRpcProvider>;
   private wallets: Map<string, ethers.Wallet>;
 
@@ -54,11 +71,12 @@ class OneInchFusionService {
       "137":
         process.env.POLYGON_RPC_URL ||
         "https://polygon.rpc.subquery.network/public",
-      "56":
-        process.env.BSC_RPC_URL || "https://bsc.rpc.subquery.network/public",
       "42161":
         process.env.ARBITRUM_RPC_URL ||
         "https://arbitrum.rpc.subquery.network/public",
+      // add base
+      "8453":
+        process.env.BASE_RPC_URL || "https://base.rpc.subquery.network/public",
     };
     return rpcUrls[chainId] || (rpcUrls["1"] as string);
   }
@@ -85,57 +103,113 @@ class OneInchFusionService {
     toChainId: string;
     srcToken: string;
     dstToken: string;
+    walletAddress: string;
     amount: string;
   }): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/quoter/v1.1//quote/receive`;
+    const url = `${this.baseUrl}/fusion-plus/quoter/v1.1/quote/receive`;
 
-    const response: AxiosResponse = await axios.get(url, {
-      params: {
-        srcChain: params.fromChainId,
-        dstChain: params.toChainId,
-        srcToken: params.srcToken,
-        dstToken: params.dstToken,
-        amount: params.amount,
-        enableEstimate: true,
-        fee: "0",
-      },
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
+    console.log(`🔍 Getting quote from ${url}`);
+    console.log(`📋 Quote params:`, {
+      srcChain: params.fromChainId,
+      dstChain: params.toChainId,
+      srcToken: params.srcToken,
+      dstToken: params.dstToken,
+      walletAddress: params.walletAddress,
+      amount: params.amount,
     });
 
-    return response.data;
-  }
-
-  async buildLimitOrder(params: any): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${params.fromChainId}/order/build`;
-
-    const response: AxiosResponse = await axios.post(
-      url,
-      {
-        makerAsset: params.makerAsset,
-        takerAsset: params.takerAsset,
-        maker: params.maker,
-        allowedSender: params.allowedSender || ethers.ZeroAddress,
-        makingAmount: params.makingAmount,
-        takingAmount: params.takingAmount,
-        expiration: params.expiration,
-        salt: params.salt,
-        interactions: "0x",
-        permit: "0x",
-        preInteraction: "0x",
-        postInteraction: "0x",
-      },
-      {
+    try {
+      const response: AxiosResponse = await axios.get(url, {
+        params: {
+          srcChain: params.fromChainId,
+          dstChain: params.toChainId,
+          srcTokenAddress: params.srcToken,
+          dstTokenAddress: params.dstToken,
+          walletAddress: params.walletAddress,
+          amount: params.amount,
+          enableEstimate: true,
+          fee: "0",
+        },
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-      }
-    );
+        timeout: 30000, // 30 second timeout
+      });
 
-    return response.data;
+      console.log(`✅ Quote response status: ${response.status}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Quote API error:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        params: error.config?.params,
+      });
+      throw error;
+    }
+  }
+
+  async buildLimitOrder(params: {
+    quoteId: string;
+    secretsHashList: string[];
+    permit?: string;
+    isPermit2?: boolean;
+    receiver?: string;
+    preset?: string;
+  }): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/quoter/v1.1/quote/build/evm`;
+
+    console.log(`🔨 Building limit order from ${url}`);
+    console.log(`📋 Build order params:`, {
+      quoteId: params.quoteId,
+      secretsHashList: params.secretsHashList,
+      permit: params.permit,
+      isPermit2: params.isPermit2,
+      receiver: params.receiver,
+      preset: params.preset,
+    });
+
+    try {
+      const response: AxiosResponse = await axios.post(
+        url,
+        {
+          secretsHashList: params.secretsHashList,
+          permit: params.permit || "string",
+          isPermit2: params.isPermit2 || false,
+          receiver: params.receiver || "string",
+          preset: params.preset || "fast",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          params: {
+            quoteId: params.quoteId,
+          },
+          paramsSerializer: {
+            indexes: null,
+          },
+          timeout: 30000, // 30 second timeout
+        }
+      );
+
+      console.log(`✅ Build order response status: ${response.status}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Build order API error:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        params: error.config?.params,
+      });
+      throw error;
+    }
   }
 
   async signOrder(
@@ -173,32 +247,69 @@ class OneInchFusionService {
     return { ...orderData, signature };
   }
 
-  async submitOrder(signedOrder: any, chainId: string): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order`;
+  async submitOrder(orderData: {
+    order: any;
+    srcChainId: number;
+    signature: string;
+    extension?: string;
+    quoteId?: string;
+    secretHashes?: string[];
+  }): Promise<any> {
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/submit`;
 
-    const response: AxiosResponse = await axios.post(
-      url,
-      {
-        order: signedOrder.order,
-        signature: signedOrder.signature,
-        extension: signedOrder.extension || "0x",
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // Structure the order according to the API schema
+    const evmSignedOrderInput = {
+      order: orderData.order,
+      srcChainId: orderData.srcChainId,
+      signature: orderData.signature,
+      extension: orderData.extension || "0x",
+      quoteId: orderData.quoteId || "",
+      secretHashes: orderData.secretHashes || [],
+    };
 
-    return response.data;
+    console.log(`📤 Submitting order to ${url}`);
+    console.log(`📋 Submit order data:`, {
+      srcChainId: evmSignedOrderInput.srcChainId,
+      quoteId: evmSignedOrderInput.quoteId,
+      secretHashes: evmSignedOrderInput.secretHashes,
+      extension: evmSignedOrderInput.extension,
+    });
+
+    try {
+      const response: AxiosResponse = await axios.post(
+        url,
+        evmSignedOrderInput,
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30000, // 30 second timeout
+        }
+      );
+
+      console.log(`✅ Submit order response status: ${response.status}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Submit order API error:`, {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+      });
+      throw error;
+    }
   }
 
   async getOrderStatus(orderHash: string, chainId: string): Promise<any> {
     const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/status/${orderHash}`;
 
     const response: AxiosResponse = await axios.get(url, {
-      headers: { Authorization: `Bearer ${this.apiKey}` },
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
     });
 
     return response.data;
@@ -209,7 +320,7 @@ class OneInchFusionService {
     chainId: string,
     privateKey: string
   ): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/cancel`;
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.0/${chainId}/order/cancel`;
 
     const wallet = this.getWallet(privateKey, chainId);
     const message = ethers.solidityPackedKeccak256(["bytes32"], [orderHash]);
@@ -235,13 +346,20 @@ class OneInchFusionService {
     limit = 10,
     offset = 0
   ): Promise<any> {
-    const url = `${this.baseUrl}/fusion-plus/relayer/v1.1/${chainId}/order/active`;
+    const url = `${this.baseUrl}/fusion-plus/relayer/v1.0/${chainId}/order/active`;
 
     const response: AxiosResponse = await axios.get(url, {
       params: { maker, limit, offset },
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
+    return response.data;
+  }
 
+  async getBalances(chainId: string, walletAddress: string): Promise<any> {
+    const url = `${this.baseUrl}/balance/v1.2/${chainId}/balances/${walletAddress}`;
+    const response: AxiosResponse = await axios.get(url, {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
     return response.data;
   }
 
@@ -270,32 +388,119 @@ const handleValidationErrors = (
   next();
 };
 
-// Error handler
 const errorHandler = (
   error: any,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  console.error("API Error:", error);
-  if (error.response?.data) {
-    return res.status(error.response.status || 500).json({
+  console.error("🚨 API Error:", {
+    message: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+    body: req.body,
+    params: req.params,
+    query: req.query,
+  });
+
+  // Handle axios errors specifically
+  if (error.isAxiosError) {
+    console.error("🌐 Axios Error Details:", {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        params: error.config?.params,
+        data: error.config?.data,
+      },
+    });
+
+    return res.status(error.response?.status || 500).json({
       success: false,
       message: "External API error",
-      error: error.response.data,
+      error: {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+      },
     });
   }
+
+  // Handle validation errors
+  if (error.name === "ValidationError") {
+    return res.status(400).json({
+      success: false,
+      message: "Validation error",
+      error: error.message,
+    });
+  }
+
+  // Generic error handler
   res.status(500).json({
     success: false,
     message: error.message || "Internal server error",
+    ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
   });
 };
 
 app.use(errorHandler);
 
-// Routes
 app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "OK", timestamp: new Date().toISOString() });
+  res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    environment: {
+      hasApiKey: !!process.env.ONEINCH_API_KEY,
+      nodeEnv: process.env.NODE_ENV || "development",
+    },
+  });
+});
+
+// Test endpoint to verify 1inch API connectivity
+app.get("/api/test-connection", async (req: Request, res: Response) => {
+  try {
+    console.log("🧪 Testing 1inch API connection...");
+
+    // Test with a simple token list request
+    const testUrl = `${fusionService.baseUrl}/swap/v6.0/1/tokens`;
+    console.log(`🔗 Testing connection to: ${testUrl}`);
+
+    const response = await axios.get(testUrl, {
+      headers: {
+        Authorization: `Bearer ${fusionService["apiKey"]}`,
+      },
+      timeout: 10000, // 10 second timeout for test
+    });
+
+    res.json({
+      success: true,
+      message: "1inch API connection successful",
+      data: {
+        status: response.status,
+        tokensCount: response.data?.tokens
+          ? Object.keys(response.data.tokens).length
+          : 0,
+        url: testUrl,
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ 1inch API connection test failed:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "1inch API connection test failed",
+      error: {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+      },
+    });
+  }
 });
 
 app.post(
@@ -306,16 +511,25 @@ app.post(
     body("srcToken").isEthereumAddress(),
     body("dstToken").isEthereumAddress(),
     body("amount").isString(),
+    body("walletAddress").isEthereumAddress(),
     handleValidationErrors,
   ],
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { fromChainId, toChainId, srcToken, dstToken, amount } = req.body;
+      const {
+        fromChainId,
+        toChainId,
+        srcToken,
+        dstToken,
+        amount,
+        walletAddress,
+      } = req.body;
       const quote = await fusionService.getQuote({
         fromChainId: fromChainId.toString(),
         toChainId: toChainId.toString(),
         srcToken,
         dstToken,
+        walletAddress,
         amount,
       });
       res.json({ success: true, data: quote });
@@ -325,11 +539,268 @@ app.post(
   }
 );
 
-app.use("*", (req: Request, res: Response) => {
-  res.status(404).json({ success: false, message: "Route not found" });
-});
+app.post(
+  "/api/orders",
+  [
+    body("fromChainId").isNumeric().withMessage("fromChainId must be a number"),
+    body("toChainId").isNumeric().withMessage("toChainId must be a number"),
+    body("srcToken")
+      .isEthereumAddress()
+      .withMessage("Invalid source token address"),
+    body("dstToken")
+      .isEthereumAddress()
+      .withMessage("Invalid destination token address"),
+    body("amount").isString().withMessage("Amount must be a string"),
+    body("privateKey").isString().withMessage("Private key is required"),
+    body("walletAddress")
+      .isEthereumAddress()
+      .withMessage("Wallet address is required"),
+    body("secretsHashList")
+      .isArray()
+      .withMessage("Secrets hash list is required"),
+    body("permit").optional().isString(),
+    body("isPermit2").optional().isBoolean(),
+    body("receiver").optional().isString(),
+    body("preset").optional().isString(),
+    handleValidationErrors,
+  ],
+  async (
+    req: Request<{}, any, CreateOrderRequest>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const {
+        fromChainId,
+        toChainId,
+        srcToken,
+        dstToken,
+        amount,
+        privateKey,
+        walletAddress,
+        secretsHashList,
+        permit,
+        isPermit2,
+        receiver,
+        preset,
+      } = req.body;
 
-// Start server
+      const fromChainStr = String(fromChainId);
+      const wallet = fusionService.getWallet(privateKey, fromChainStr);
+
+      const quote = await fusionService.getQuote({
+        fromChainId: fromChainStr,
+        toChainId: String(toChainId),
+        srcToken,
+        dstToken,
+        walletAddress,
+        amount,
+      });
+
+      if (!quote.quoteId) {
+        throw new Error("No quoteId received from quote API");
+      }
+
+      // Step 2: Build limit order using quoteId
+      const order = await fusionService.buildLimitOrder({
+        quoteId: quote.quoteId,
+        secretsHashList,
+        permit,
+        isPermit2,
+        receiver,
+        preset,
+      });
+
+      // Step 3: Sign the order
+      const signedOrder = await fusionService.signOrder(
+        order,
+        privateKey,
+        fromChainStr
+      );
+
+      // Step 4: Submit the order
+      const result = await fusionService.submitOrder({
+        order: signedOrder.order,
+        srcChainId: parseInt(fromChainStr),
+        signature: signedOrder.signature,
+        extension: signedOrder.extension,
+        quoteId: quote.quoteId,
+        secretHashes: secretsHashList,
+      });
+
+      res.json({
+        success: true,
+        message: "Limit order created successfully",
+        data: {
+          orderHash: result.orderHash,
+          order: signedOrder.order,
+          signature: signedOrder.signature,
+          quoteId: quote.quoteId,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.get(
+  "/api/orders/:orderHash/:chainId",
+  [
+    param("orderHash").isHexadecimal().withMessage("Invalid order hash"),
+    param("chainId").isNumeric().withMessage("Chain ID must be a number"),
+    handleValidationErrors,
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { orderHash, chainId } = req.params;
+
+      const status = await fusionService.getOrderStatus(
+        orderHash as string,
+        chainId as string
+      );
+
+      res.json({ success: true, data: status });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.delete(
+  "/api/orders/:orderHash/:chainId",
+  [
+    param("orderHash").isHexadecimal().withMessage("Invalid order hash"),
+    param("chainId").isNumeric().withMessage("Chain ID must be a number"),
+    body("privateKey").isString().withMessage("Private key is required"),
+    handleValidationErrors,
+  ],
+  async (
+    req: Request<any, CancelOrderBody>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { orderHash, chainId } = req.params;
+      const { privateKey } = req.body;
+
+      const result = await fusionService.cancelOrder(
+        orderHash,
+        chainId,
+        privateKey
+      );
+
+      res.json({
+        success: true,
+        message: "Order cancelled successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.get(
+  "/api/orders/active/:maker/:chainId",
+  [
+    param("maker").isEthereumAddress().withMessage("Invalid maker address"),
+    param("chainId").isNumeric().withMessage("Chain ID must be a number"),
+    handleValidationErrors,
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { maker, chainId } = req.params;
+      const limit = Number(req.query.limit ?? 10);
+      const offset = Number(req.query.offset ?? 0);
+
+      const orders = await fusionService.getActiveOrders(
+        maker!,
+        chainId!,
+        limit,
+        offset
+      );
+
+      res.json({ success: true, data: orders });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.get(
+  "/api/tokens/:chainId",
+  [
+    param("chainId").isNumeric().withMessage("Chain ID must be a number"),
+    handleValidationErrors,
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { chainId } = req.params;
+      const url = `${fusionService.baseUrl}/swap/v6.0/${chainId}/tokens`;
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${fusionService["apiKey"]}`,
+        },
+      });
+
+      res.json({ success: true, data: response.data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.post(
+  "/api/utils/to-wei",
+  [
+    body("amount").isString().withMessage("Amount must be a string"),
+    body("decimals")
+      .optional()
+      .isNumeric()
+      .withMessage("Decimals must be a number"),
+    handleValidationErrors,
+  ],
+  (req: Request, res: Response) => {
+    try {
+      const { amount, decimals = 18 } = req.body;
+      const wei = ethers.parseUnits(amount, Number(decimals)).toString();
+
+      res.json({
+        success: true,
+        data: { amount, decimals, wei },
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+);
+
+app.post(
+  "/api/utils/from-wei",
+  [
+    body("wei").isString().withMessage("Wei must be a string"),
+    body("decimals")
+      .optional()
+      .isNumeric()
+      .withMessage("Decimals must be a number"),
+    handleValidationErrors,
+  ],
+  (req: Request, res: Response) => {
+    try {
+      const { wei, decimals = 18 } = req.body;
+      const amount = ethers.formatUnits(wei, Number(decimals));
+
+      res.json({
+        success: true,
+        data: { wei, decimals, amount },
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+);
+
 app.listen(PORT, () => {
   console.log(`🚀 1inch Fusion+ API server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
