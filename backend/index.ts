@@ -134,7 +134,7 @@ class OneInchFusionService {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
       });
 
       console.log(`✅ Quote response status: ${response.status}`);
@@ -148,6 +148,20 @@ class OneInchFusionService {
         url: error.config?.url,
         params: error.config?.params,
       });
+
+      // Enhanced error handling for token support issues
+      if (
+        error.response?.status === 400 &&
+        error.response?.data?.description === "token not supported"
+      ) {
+        const enhancedError = new Error(
+          `Token not supported: ${params.srcToken} on chain ${params.fromChainId} or ${params.dstToken} on chain ${params.toChainId}. ` +
+            `Please check if these tokens are supported by 1inch Fusion+ for cross-chain swaps.`
+        );
+        enhancedError.name = "TokenNotSupportedError";
+        throw enhancedError;
+      }
+
       throw error;
     }
   }
@@ -193,7 +207,7 @@ class OneInchFusionService {
           paramsSerializer: {
             indexes: null,
           },
-          timeout: 30000, // 30 second timeout
+          timeout: 30000,
         }
       );
 
@@ -204,7 +218,7 @@ class OneInchFusionService {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
-        data: error.response?.data,
+        data: JSON.stringify(error.response?.data),
         url: error.config?.url,
         params: error.config?.params,
       });
@@ -366,6 +380,66 @@ class OneInchFusionService {
   generateSalt(): string {
     return ethers.getBigInt(ethers.hexlify(ethers.randomBytes(32))).toString();
   }
+
+  async checkTokenSupport(
+    chainId: string,
+    tokenAddress: string
+  ): Promise<boolean> {
+    try {
+      const url = `${this.baseUrl}/swap/v6.0/${chainId}/tokens`;
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        timeout: 10000,
+      });
+
+      const tokens = response.data?.tokens || {};
+      return !!tokens[tokenAddress.toLowerCase()];
+    } catch (error) {
+      console.error(
+        `❌ Token support check failed for ${tokenAddress} on chain ${chainId}:`,
+        error
+      );
+      return false;
+    }
+  }
+
+  async validateTokenPair(params: {
+    fromChainId: string;
+    toChainId: string;
+    srcToken: string;
+    dstToken: string;
+  }): Promise<{ isValid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Check source token support
+    const srcTokenSupported = await this.checkTokenSupport(
+      params.fromChainId,
+      params.srcToken
+    );
+    if (!srcTokenSupported) {
+      errors.push(
+        `Source token ${params.srcToken} is not supported on chain ${params.fromChainId}`
+      );
+    }
+
+    // Check destination token support
+    const dstTokenSupported = await this.checkTokenSupport(
+      params.toChainId,
+      params.dstToken
+    );
+    if (!dstTokenSupported) {
+      errors.push(
+        `Destination token ${params.dstToken} is not supported on chain ${params.toChainId}`
+      );
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }
 }
 
 // Init service
@@ -440,6 +514,17 @@ const errorHandler = (
     });
   }
 
+  // Handle token not supported errors
+  if (error.name === "TokenNotSupportedError") {
+    return res.status(400).json({
+      success: false,
+      message: "Token not supported",
+      error: error.message,
+      suggestion:
+        "Use the /api/validate-tokens endpoint to check token support before requesting quotes",
+    });
+  }
+
   // Generic error handler
   res.status(500).json({
     success: false,
@@ -504,6 +589,43 @@ app.get("/api/test-connection", async (req: Request, res: Response) => {
 });
 
 app.post(
+  "/api/validate-tokens",
+  [
+    body("fromChainId").isNumeric(),
+    body("toChainId").isNumeric(),
+    body("srcToken").isEthereumAddress(),
+    body("dstToken").isEthereumAddress(),
+    handleValidationErrors,
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fromChainId, toChainId, srcToken, dstToken } = req.body;
+
+      const validation = await fusionService.validateTokenPair({
+        fromChainId: fromChainId.toString(),
+        toChainId: toChainId.toString(),
+        srcToken,
+        dstToken,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          isValid: validation.isValid,
+          errors: validation.errors,
+          tokens: {
+            srcToken: { address: srcToken, chainId: fromChainId },
+            dstToken: { address: dstToken, chainId: toChainId },
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.post(
   "/api/quote",
   [
     body("fromChainId").isNumeric(),
@@ -524,6 +646,26 @@ app.post(
         amount,
         walletAddress,
       } = req.body;
+
+      // Optional: Validate tokens before attempting quote
+      // Uncomment the following lines to enable pre-validation
+      /*
+      const validation = await fusionService.validateTokenPair({
+        fromChainId: fromChainId.toString(),
+        toChainId: toChainId.toString(),
+        srcToken,
+        dstToken,
+      });
+      
+      if (!validation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: "Token validation failed",
+          errors: validation.errors
+        });
+      }
+      */
+
       const quote = await fusionService.getQuote({
         fromChainId: fromChainId.toString(),
         toChainId: toChainId.toString(),
@@ -750,6 +892,48 @@ app.get(
     }
   }
 );
+
+// Common token addresses for testing
+app.get("/api/common-tokens", (req: Request, res: Response) => {
+  const commonTokens = {
+    "1": {
+      // Ethereum
+      WETH: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      USDC: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      USDT: "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      DAI: "0x6b175474e89094c44da98b954eedeac495271d0f",
+    },
+    "137": {
+      // Polygon
+      WMATIC: "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+      USDC: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+      USDT: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+      DAI: "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
+    },
+    "8453": {
+      // Base
+      WETH: "0x4200000000000000000000000000000000000006",
+      USDC: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      DAI: "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+    },
+    "42161": {
+      // Arbitrum
+      WETH: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+      USDC: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      USDT: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      DAI: "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+    },
+  };
+
+  res.json({
+    success: true,
+    data: {
+      message: "Common token addresses for testing",
+      tokens: commonTokens,
+      note: "These are common token addresses. Use /api/tokens/:chainId to get the full list of supported tokens.",
+    },
+  });
+});
 
 app.post(
   "/api/utils/to-wei",
