@@ -62,7 +62,7 @@ export function SwapInterface() {
   const [limitOrderError, setLimitOrderError] = useState<string | null>(null);
   const [isExecutingLimitOrder, setIsExecutingLimitOrder] = useState(false);
 
-  const { isConnected, address, balance, balanceLoading, formatAddress } =
+  const { isConnected, address, balance, balanceLoading, formatAddress, connectWallet, connectors } =
     useWallet();
   const { data: walletClient } = useWalletClient();
 
@@ -285,9 +285,17 @@ export function SwapInterface() {
     }
   }
 
-  const handleConnectWallet = () => {
-    setShowWalletOptions(true);
-    setShowConnectionDialog(true);
+  // Replace handleConnectWallet to connect instantly with MetaMask
+  const handleConnectWallet = async () => {
+    const metaMaskConnector = connectors.find((c) => c.id === "metaMask");
+    if (metaMaskConnector) {
+      await connectWallet("metaMask");
+    } else if (connectors.length > 0) {
+      await connectWallet(connectors[0].id);
+    }
+    // Optionally, you can show the modal if you want to support multiple wallets
+    // setShowWalletOptions(true);
+    // setShowConnectionDialog(true);
   };
 
   return (

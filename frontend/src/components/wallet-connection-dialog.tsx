@@ -1,50 +1,76 @@
-"use client"
+"use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { CheckCircle, Copy, ExternalLink, Loader2 } from "lucide-react"
-import { useState } from "react"
-import { useWallet } from "@/hooks/use-wallet"
-import { getWalletIcon } from "./wallet-icons"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useWallet } from "@/hooks/use-wallet";
+import { getWalletIcon } from "./wallet-icons";
 
 interface WalletConnectionDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  walletAddress?: string
-  showWalletOptions?: boolean
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  walletAddress?: string;
+  showWalletOptions?: boolean;
 }
 
-export function WalletConnectionDialog({ 
-  open, 
-  onOpenChange, 
-  walletAddress, 
-  showWalletOptions = false 
+export function WalletConnectionDialog({
+  open,
+  onOpenChange,
+  walletAddress,
+  showWalletOptions = false,
 }: WalletConnectionDialogProps) {
-  const [copied, setCopied] = useState(false)
-  const [connectingWallet, setConnectingWallet] = useState<string | null>(null)
-  const { connectWallet, connectors, isConnected, address, formatAddress } = useWallet()
+  const [copied, setCopied] = useState(false);
+  const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
+  const {
+    connectWallet,
+    disconnectWallet,
+    connectors,
+    isConnected,
+    address,
+    formatAddress,
+  } = useWallet();
 
   const handleCopyAddress = async () => {
     if (walletAddress || address) {
-      await navigator.clipboard.writeText(walletAddress || address || '')
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(walletAddress || address || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-  }
+  };
 
   const handleConnectWallet = async (connectorId: string) => {
     try {
-      setConnectingWallet(connectorId)
-      await connectWallet(connectorId)
-      onOpenChange(false)
+      setConnectingWallet(connectorId);
+      await connectWallet(connectorId);
+      // Wait for isConnected to become true before closing modal
+      let tries = 0;
+      while (!isConnected && tries < 10) {
+        await new Promise((res) => setTimeout(res, 150));
+        tries++;
+      }
+      if (isConnected) {
+        onOpenChange(false);
+      }
     } catch (error) {
-      console.error('Failed to connect wallet:', error)
+      console.error("Failed to connect wallet:", error);
     } finally {
-      setConnectingWallet(null)
+      setConnectingWallet(null);
     }
-  }
+  };
 
-  const currentAddress = walletAddress || address
+  // Add disconnect button handler
+  const handleDisconnectWallet = () => {
+    disconnectWallet();
+    onOpenChange(false);
+  };
+
+  const currentAddress = walletAddress || address;
 
   if (showWalletOptions && !isConnected) {
     return (
@@ -68,10 +94,14 @@ export function WalletConnectionDialog({
                   <div className="flex flex-col items-start">
                     <span className="font-medium">{connector.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {connector.id === 'metaMask' && 'Connect using MetaMask browser extension'}
-                      {connector.id === 'walletConnect' && 'Connect using WalletConnect'}
-                      {connector.id === 'coinbaseWallet' && 'Connect using Coinbase Wallet'}
-                      {connector.id === 'injected' && 'Connect using browser wallet'}
+                      {connector.id === "metaMask" &&
+                        "Connect using MetaMask browser extension"}
+                      {connector.id === "walletConnect" &&
+                        "Connect using WalletConnect"}
+                      {connector.id === "coinbaseWallet" &&
+                        "Connect using Coinbase Wallet"}
+                      {connector.id === "injected" &&
+                        "Connect using browser wallet"}
                     </span>
                   </div>
                   {connectingWallet === connector.id && (
@@ -83,11 +113,12 @@ export function WalletConnectionDialog({
           </div>
 
           <div className="text-center text-xs text-muted-foreground">
-            By connecting a wallet, you agree to our Terms of Service and Privacy Policy.
+            By connecting a wallet, you agree to our Terms of Service and
+            Privacy Policy.
           </div>
         </DialogContent>
       </Dialog>
-    )
+    );
   }
 
   return (
@@ -114,9 +145,16 @@ export function WalletConnectionDialog({
           <div className="text-center space-y-2">
             <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
               <code className="flex-1 text-xs font-mono text-center">
-                {currentAddress ? formatAddress(currentAddress) : '0x0000...0000'}
+                {currentAddress
+                  ? formatAddress(currentAddress)
+                  : "0x0000...0000"}
               </code>
-              <Button variant="ghost" size="sm" onClick={handleCopyAddress} className="h-6 w-6 p-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyAddress}
+                className="h-6 w-6 p-0"
+              >
                 <Copy className="w-3 h-3" />
               </Button>
             </div>
@@ -124,10 +162,15 @@ export function WalletConnectionDialog({
           </div>
 
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="flex-1" 
-              onClick={() => window.open(`https://etherscan.io/address/${currentAddress}`, '_blank')}
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() =>
+                window.open(
+                  `https://etherscan.io/address/${currentAddress}`,
+                  "_blank"
+                )
+              }
             >
               <ExternalLink className="w-4 h-4 mr-2" />
               View on Explorer
@@ -135,9 +178,15 @@ export function WalletConnectionDialog({
             <Button className="flex-1" onClick={() => onOpenChange(false)}>
               Start Trading
             </Button>
+            <Button
+              className="flex-1 bg-red-500 text-white hover:bg-red-600"
+              onClick={handleDisconnectWallet}
+            >
+              Disconnect
+            </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
