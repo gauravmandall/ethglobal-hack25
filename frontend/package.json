@@ -43,6 +43,7 @@
     "@walletconnect/modal": "^2.7.0",
     "@walletconnect/web3-provider": "^1.8.0",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
