@@ -62,8 +62,15 @@ export function SwapInterface() {
   const [limitOrderError, setLimitOrderError] = useState<string | null>(null);
   const [isExecutingLimitOrder, setIsExecutingLimitOrder] = useState(false);
 
-  const { isConnected, address, balance, balanceLoading, formatAddress, connectWallet, connectors } =
-    useWallet();
+  const {
+    isConnected,
+    address,
+    balance,
+    balanceLoading,
+    formatAddress,
+    connectWallet,
+    connectors,
+  } = useWallet();
   const { data: walletClient } = useWalletClient();
 
   const {
