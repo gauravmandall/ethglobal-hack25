@@ -89,8 +89,12 @@ export function SwapInterface() {
     receiver,
   }: any) {
     try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        "https://ethglobal-hack25.onrender.com";
+
       // 1. Get quote
-      const { data: quoteRes } = await axios.post("/api/quote", {
+      const { data: quoteRes } = await axios.post(`${baseUrl}/api/quote`, {
         fromChainId,
         toChainId,
         srcToken,
@@ -102,15 +106,18 @@ export function SwapInterface() {
       const quote = quoteRes.data;
 
       // 2. Create order
-      const { data: orderRes } = await axios.post("/api/orders/create", {
-        fromChainId,
-        toChainId,
-        srcToken,
-        dstToken,
-        amount,
-        walletAddress,
-        receiver,
-      });
+      const { data: orderRes } = await axios.post(
+        `${baseUrl}/api/orders/create`,
+        {
+          fromChainId,
+          toChainId,
+          srcToken,
+          dstToken,
+          amount,
+          walletAddress,
+          receiver,
+        }
+      );
       if (!orderRes.success) throw new Error("Failed to create order");
 
       const {
@@ -129,14 +136,17 @@ export function SwapInterface() {
       const signature = await signer._signTypedData(domain, types, order);
 
       // 4. Submit signed order
-      const { data: submitRes } = await axios.post("/api/orders/submit", {
-        order,
-        srcChainId,
-        signature,
-        extension,
-        quoteId,
-        secretHashes,
-      });
+      const { data: submitRes } = await axios.post(
+        `${baseUrl}/api/orders/submit`,
+        {
+          order,
+          srcChainId,
+          signature,
+          extension,
+          quoteId,
+          secretHashes,
+        }
+      );
       if (!submitRes.success) throw new Error("Failed to submit order");
 
       return submitRes.data;

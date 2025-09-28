@@ -96,33 +96,35 @@ export class SwapService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    this.baseUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      "https://ethglobal-hack25.onrender.com";
   }
 
   async getQuote(params: SwapQuoteRequest): Promise<SwapQuoteResponse> {
     try {
       const url = `${this.baseUrl}/api/quote`;
-      console.log('Getting quote from:', url, params);
-      
+      console.log("Getting quote from:", url, params);
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Quote API error:', errorData);
-        throw new Error(errorData.message || 'Failed to get quote');
+        console.error("Quote API error:", errorData);
+        throw new Error(errorData.message || "Failed to get quote");
       }
 
       const data: SwapQuoteResponse = await response.json();
-      console.log('Quote response:', data);
+      console.log("Quote response:", data);
       return data;
     } catch (error) {
-      console.error('Swap Service Quote Error:', error);
+      console.error("Swap Service Quote Error:", error);
       throw error;
     }
   }
@@ -130,27 +132,27 @@ export class SwapService {
   async createOrder(params: CreateOrderRequest): Promise<CreateOrderResponse> {
     try {
       const url = `${this.baseUrl}/api/orders/create`;
-      console.log('Creating order:', url, params);
-      
+      console.log("Creating order:", url, params);
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Create order API error:', errorData);
-        throw new Error(errorData.message || 'Failed to create order');
+        console.error("Create order API error:", errorData);
+        throw new Error(errorData.message || "Failed to create order");
       }
 
       const data: CreateOrderResponse = await response.json();
-      console.log('Create order response:', data);
+      console.log("Create order response:", data);
       return data;
     } catch (error) {
-      console.error('Swap Service Create Order Error:', error);
+      console.error("Swap Service Create Order Error:", error);
       throw error;
     }
   }
@@ -158,27 +160,27 @@ export class SwapService {
   async submitOrder(params: SubmitOrderRequest): Promise<SubmitOrderResponse> {
     try {
       const url = `${this.baseUrl}/api/orders/submit`;
-      console.log('Submitting order:', url);
-      
+      console.log("Submitting order:", url);
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Submit order API error:', errorData);
-        throw new Error(errorData.message || 'Failed to submit order');
+        console.error("Submit order API error:", errorData);
+        throw new Error(errorData.message || "Failed to submit order");
       }
 
       const data: SubmitOrderResponse = await response.json();
-      console.log('Submit order response:', data);
+      console.log("Submit order response:", data);
       return data;
     } catch (error) {
-      console.error('Swap Service Submit Order Error:', error);
+      console.error("Swap Service Submit Order Error:", error);
       throw error;
     }
   }
@@ -186,26 +188,26 @@ export class SwapService {
   async getSupportedTokens(chainId: number): Promise<TokenListResponse> {
     try {
       const url = `${this.baseUrl}/api/tokens/${chainId}`;
-      console.log('Getting supported tokens:', url);
-      
+      console.log("Getting supported tokens:", url);
+
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Get tokens API error:', errorData);
-        throw new Error(errorData.message || 'Failed to get supported tokens');
+        console.error("Get tokens API error:", errorData);
+        throw new Error(errorData.message || "Failed to get supported tokens");
       }
 
       const data: TokenListResponse = await response.json();
-      console.log('Supported tokens response:', data);
+      console.log("Supported tokens response:", data);
       return data;
     } catch (error) {
-      console.error('Swap Service Get Tokens Error:', error);
+      console.error("Swap Service Get Tokens Error:", error);
       throw error;
     }
   }
@@ -213,26 +215,26 @@ export class SwapService {
   async getCommonTokens(): Promise<any> {
     try {
       const url = `${this.baseUrl}/api/common-tokens`;
-      console.log('Getting common tokens:', url);
-      
+      console.log("Getting common tokens:", url);
+
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Get common tokens API error:', errorData);
-        throw new Error(errorData.message || 'Failed to get common tokens');
+        console.error("Get common tokens API error:", errorData);
+        throw new Error(errorData.message || "Failed to get common tokens");
       }
 
       const data = await response.json();
-      console.log('Common tokens response:', data);
+      console.log("Common tokens response:", data);
       return data;
     } catch (error) {
-      console.error('Swap Service Get Common Tokens Error:', error);
+      console.error("Swap Service Get Common Tokens Error:", error);
       throw error;
     }
   }
@@ -245,27 +247,27 @@ export class SwapService {
   }): Promise<{ isValid: boolean; errors: string[] }> {
     try {
       const url = `${this.baseUrl}/api/validate-tokens`;
-      console.log('Validating tokens:', url, params);
-      
+      console.log("Validating tokens:", url, params);
+
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(params),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Validate tokens API error:', errorData);
-        throw new Error(errorData.message || 'Failed to validate tokens');
+        console.error("Validate tokens API error:", errorData);
+        throw new Error(errorData.message || "Failed to validate tokens");
       }
 
       const data = await response.json();
-      console.log('Validate tokens response:', data);
+      console.log("Validate tokens response:", data);
       return data.data;
     } catch (error) {
-      console.error('Swap Service Validate Tokens Error:', error);
+      console.error("Swap Service Validate Tokens Error:", error);
       throw error;
     }
   }
@@ -273,8 +275,8 @@ export class SwapService {
   // Utility function to convert amount to wei
   toWei(amount: string, decimals: number = 18): string {
     const amountFloat = parseFloat(amount);
-    if (isNaN(amountFloat)) return '0';
-    
+    if (isNaN(amountFloat)) return "0";
+
     const multiplier = Math.pow(10, decimals);
     return (amountFloat * multiplier).toString();
   }
