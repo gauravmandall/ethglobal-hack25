@@ -1,85 +1,98 @@
-# Cross-Chain Token Swap Protocol
 
-## Overview
+---
 
-This project is a full-stack cross-chain protocol enabling seamless token swaps across multiple blockchains. It features a robust backend, a modern frontend, and smart contract integration, designed for scalability, security, and user experience. The protocol is built for ETHGlobal Hackathon 2025 and aims to push the boundaries of interoperability in decentralized finance (DeFi).
+# OneInchSwap 
+
+A DeFi protocol enabling **cross-chain token swaps** and **automated stop-loss orders**.
+Built for **ETHGlobal Hackathon 2025**, it combines **interoperability** with **risk management**, offering traders a seamless and secure DeFi experience.
+
+---
 
 ## Features
 
-- **Cross-Chain Token Swaps:** Swap tokens between different blockchains with a single interface.
-- **Secure Order Management:** Backend APIs for creating, submitting, and cancelling swap orders, with validation and rate limiting.
-- **Wallet Integration:** Connect your wallet and manage assets directly from the frontend.
-- **Modern UI:** Built with Next.js and Tailwind CSS for a fast, responsive, and intuitive user experience.
-- **Smart Contract Layer:** NEAR contract template for on-chain state management and extensibility.
+* **Automated Stop-Loss Orders** – Protect your portfolio with automated sell triggers using the 1inch Limit Order Protocol.
+* **Secure Order Management** – Create, submit, and cancel swap/stop-loss orders with validation and rate limiting.
+* **Real-Time Portfolio View** – Fetch live token balances via the 1inch API.
+* **Wallet Integration** – Connect MetaMask or WalletConnect for direct interaction.
+* **Modern UI** – Fast, responsive interface built with Next.js and Tailwind CSS.
+* **Smart Contract Layer** – NEAR contract template for cross-chain state management and extensibility.
+
+---
 
 ## Architecture
 
-- **Backend (`backend/`):**
-  - Node.js (Express) API server
-  - Bun runtime for speed and efficiency
-  - Handles order lifecycle, validation, and cross-chain logic
+* **Frontend (`frontend/`)**
 
-- **Frontend (`frontend/`):**
-  - Next.js app with modular components
-  - Wallet connection, swap interface, order book, price chart, and more
-  - Tailwind CSS for styling
+  * Next.js + React + Tailwind CSS
+  * Wallet connection, swap interface, stop-loss dashboard, order book, and charts
 
-- **Smart Contract (`near-cross-chain-protocol/`):**
-  - NEAR contract written in TypeScript
-  - Demonstrates basic state management and logging
+* **Backend (`backend/`)**
+
+  * Node.js + Express on Bun runtime
+  * Order lifecycle management, cross-chain logic, stop-loss execution
+  * Integrates with 1inch Balances API + Limit Order Protocol
+
+* **Smart Contracts (`near-cross-chain-protocol/`)**
+
+  * NEAR contract in TypeScript
+  * Handles on-chain state and logging
+
+---
 
 ## Getting Started
 
 ### Backend
 
-1. Install dependencies:
-   ```bash
-   cd backend
-   bun install
-   ```
-2. Run the server:
-   ```bash
-   bun run index.ts
-   ```
+```bash
+cd backend
+bun install
+bun run index.ts
+```
 
 ### Frontend
 
-1. Install dependencies:
-   ```bash
-   cd frontend
-   bun install
-   ```
-2. Start the development server:
-   ```bash
-   bun dev
-   ```
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+```bash
+cd frontend
+bun install
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
 
 ### Smart Contract (NEAR)
 
-1. Install Node.js >= 16 and [NEAR CLI](https://github.com/near/near-cli#setup)
-2. Build the contract:
-   ```bash
-   cd near-cross-chain-protocol
-   npm run build
-   ```
+```bash
+cd near-cross-chain-protocol
+npm run build
+```
 
-## Technologies Used
-
-- **Backend:** Node.js, Express, Bun, TypeScript
-- **Frontend:** Next.js, React, Tailwind CSS, TypeScript
-- **Smart Contract:** NEAR, TypeScript
-
-## Why This Project?
-
-- **Interoperability:** Bridges the gap between blockchains, making DeFi more accessible.
-- **User-Centric:** Focused on ease of use, security, and transparency.
-- **Scalable & Modular:** Easily extendable to support more chains and features.
-
-## Team & Contact
-
-Built for ETHGlobal Hackathon 2025. For questions or demo requests, contact the team at [your-email@example.com].
+(Requires Node.js ≥16 and [NEAR CLI](https://github.com/near/near-cli#setup))
 
 ---
 
-*Thank you for reviewing our project!*
+## Tech Stack
+
+* **Frontend:** Next.js, React, Tailwind CSS, TypeScript
+* **Backend:** Node.js, Express, Bun, TypeScript
+* **APIs:** 1inch Balances API, 1inch Limit Order Protocol
+* **Smart Contracts:** NEAR, TypeScript
+
+---
+
+## Roadmap
+
+* Multi-chain stop-loss support
+* Take-profit and trailing-stop orders
+* Cross-chain liquidity aggregation
+* Advanced portfolio dashboard and notifications
+
+---
+
+## Team & Contact
+
+Built for **ETHGlobal Hackathon 2025**.
+For questions or demo requests, contact: **[[uudaipuria@gmail.com]]**
+
+ **Built with love by OneInchSwap devolopers**
+
+---
