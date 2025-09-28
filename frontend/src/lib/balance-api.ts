@@ -16,7 +16,7 @@ export class BalanceApiService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   }
 
   async getWalletBalances(chainId: number, walletAddress: string): Promise<BalanceResponse> {
@@ -55,8 +55,8 @@ export class BalanceApiService {
       
       console.log('Available balances count:', Object.keys(response.data).length);
       
-      // Find ETH balance (ETH has address 0x0000000000000000000000000000000000000000)
-      const ethBalanceWei = response.data['0x0000000000000000000000000000000000000000'];
+      // Find ETH balance (ETH has address 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee in 1inch API)
+      const ethBalanceWei = response.data['0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'];
 
       console.log('Found ETH balance (wei):', ethBalanceWei);
 

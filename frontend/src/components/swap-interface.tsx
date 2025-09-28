@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowUpDown, Settings, Wallet, TrendingUp, Clock, Zap, RefreshCw } from "lucide-react"
+import { ArrowUpDown, Settings, Wallet, TrendingUp, Clock, Zap, RefreshCw, Loader2, AlertCircle } from "lucide-react"
 import { TokenSelector } from "./token-selector"
 import { OrderBook } from "./order-book"
 import { PriceChart } from "./price-chart"
@@ -15,14 +15,11 @@ import { RecentTrades } from "./recent-trades"
 import { WalletConnectionDialog } from "./wallet-connection-dialog"
 import { WalletStatsDropdown } from "./wallet-stats-dropdown"
 import { useWallet } from "@/hooks/use-wallet"
+import { useSwap } from "@/hooks/use-swap"
 import { formatBalanceForDisplay } from "@/lib/wallet-utils"
 
 export function SwapInterface() {
   const [swapMode, setSwapMode] = useState<"instant" | "limit">("instant")
-  const [fromToken, setFromToken] = useState("ETH")
-  const [toToken, setToToken] = useState("USDC")
-  const [fromAmount, setFromAmount] = useState("")
-  const [toAmount, setToAmount] = useState("")
   const [limitPrice, setLimitPrice] = useState("")
   const [slippage, setSlippage] = useState("0.5")
   const [showConnectionDialog, setShowConnectionDialog] = useState(false)
@@ -36,11 +33,27 @@ export function SwapInterface() {
     formatAddress 
   } = useWallet()
 
+  const {
+    swapParams,
+    quote,
+    isLoadingQuote,
+    quoteError,
+    canSwap,
+    isExecuting,
+    executionError,
+    executionSuccess,
+    orderHash,
+    updateSwapParams,
+    swapTokens,
+    executeSwap,
+    resetExecution,
+    exchangeRate,
+    priceImpact,
+    estimatedGas
+  } = useSwap()
+
   const handleSwapTokens = () => {
-    setFromToken(toToken)
-    setToToken(fromToken)
-    setFromAmount(toAmount)
-    setToAmount(fromAmount)
+    swapTokens()
   }
 
   const handleConnectWallet = () => {
@@ -126,12 +139,12 @@ export function SwapInterface() {
                       <Input
                         type="number"
                         placeholder="0.0"
-                        value={fromAmount}
-                        onChange={(e) => setFromAmount(e.target.value)}
+                        value={swapParams.fromAmount}
+                        onChange={(e) => updateSwapParams({ fromAmount: e.target.value })}
                         className="text-2xl font-mono h-16 pr-32"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <TokenSelector selectedToken={fromToken} onTokenSelect={setFromToken} />
+                        <TokenSelector selectedToken={swapParams.fromToken} onTokenSelect={(token) => updateSwapParams({ fromToken: token })} />
                       </div>
                     </div>
                   </div>
@@ -152,39 +165,119 @@ export function SwapInterface() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">To</label>
-                      <span className="text-xs text-muted-foreground">Balance: 1,250.00 USDC</span>
+                      <span className="text-xs text-muted-foreground">
+                        {quote ? `${quote.toToken.amount} ${quote.toToken.symbol}` : '0.00'}
+                      </span>
                     </div>
                     <div className="relative">
                       <Input
                         type="number"
                         placeholder="0.0"
-                        value={toAmount}
-                        onChange={(e) => setToAmount(e.target.value)}
-                        className="text-2xl font-mono h-16 pr-32"
+                        value={quote?.toToken.amount || ''}
+                        readOnly
+                        className="text-2xl font-mono h-16 pr-32 bg-muted/50"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <TokenSelector selectedToken={toToken} onTokenSelect={setToToken} />
+                        <TokenSelector selectedToken={swapParams.toToken} onTokenSelect={(token) => updateSwapParams({ toToken: token })} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Swap Details */}
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Rate</span>
-                      <span className="font-mono">1 ETH = 2,450.00 USDC</span>
+                  {/* Quote Loading/Error States */}
+                  {isLoadingQuote && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      <span className="text-sm text-muted-foreground">Getting quote...</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Slippage</span>
-                      <span className="font-mono">{slippage}%</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Network Fee</span>
-                      <span className="font-mono">~$12.50</span>
-                    </div>
-                  </div>
+                  )}
 
-                  <Button className="w-full h-12 text-lg font-semibold">Swap Tokens</Button>
+                  {quoteError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{quoteError}</span>
+                    </div>
+                  )}
+
+                  {/* Swap Details */}
+                  {quote && (
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Rate</span>
+                        <span className="font-mono">
+                          1 {quote.fromToken.symbol} = {exchangeRate?.toFixed(6)} {quote.toToken.symbol}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Slippage</span>
+                        <span className="font-mono">{slippage}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Price Impact</span>
+                        <span className="font-mono">{priceImpact?.toFixed(2)}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Estimated Gas</span>
+                        <span className="font-mono">{estimatedGas || 'N/A'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Execution States */}
+                  {executionError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{executionError}</span>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={resetExecution}
+                        className="ml-auto"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+
+                  {executionSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-sm text-green-700 font-medium">Swap executed successfully!</span>
+                        {orderHash && (
+                          <div className="text-xs text-green-600 font-mono mt-1">
+                            Order: {orderHash.slice(0, 10)}...{orderHash.slice(-8)}
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={resetExecution}
+                        className="ml-auto"
+                      >
+                        New Swap
+                      </Button>
+                    </div>
+                  )}
+
+                  <Button 
+                    className="w-full h-12 text-lg font-semibold" 
+                    disabled={!canSwap}
+                    onClick={executeSwap}
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Executing Swap...
+                      </>
+                    ) : isLoadingQuote ? (
+                      'Getting Quote...'
+                    ) : (
+                      'Swap Tokens'
+                    )}
+                  </Button>
                 </TabsContent>
 
                 <TabsContent value="limit" className="space-y-4">
@@ -196,12 +289,12 @@ export function SwapInterface() {
                         <Input
                           type="number"
                           placeholder="0.0"
-                          value={fromAmount}
-                          onChange={(e) => setFromAmount(e.target.value)}
+                          value={swapParams.fromAmount}
+                          onChange={(e) => updateSwapParams({ fromAmount: e.target.value })}
                           className="font-mono h-12 pr-20"
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                          <TokenSelector selectedToken={fromToken} onTokenSelect={setFromToken} compact />
+                          <TokenSelector selectedToken={swapParams.fromToken} onTokenSelect={(token) => updateSwapParams({ fromToken: token })} compact />
                         </div>
                       </div>
                     </div>
@@ -211,12 +304,12 @@ export function SwapInterface() {
                         <Input
                           type="number"
                           placeholder="0.0"
-                          value={toAmount}
-                          onChange={(e) => setToAmount(e.target.value)}
-                          className="font-mono h-12 pr-20"
+                          value={quote?.toToken.amount || ''}
+                          readOnly
+                          className="font-mono h-12 pr-20 bg-muted/50"
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                          <TokenSelector selectedToken={toToken} onTokenSelect={setToToken} compact />
+                          <TokenSelector selectedToken={swapParams.toToken} onTokenSelect={(token) => updateSwapParams({ toToken: token })} compact />
                         </div>
                       </div>
                     </div>
