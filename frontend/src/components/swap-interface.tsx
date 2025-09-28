@@ -15,6 +15,7 @@ import { RecentTrades } from "./recent-trades"
 import { WalletConnectionDialog } from "./wallet-connection-dialog"
 import { WalletStatsDropdown } from "./wallet-stats-dropdown"
 import { useWallet } from "@/hooks/use-wallet"
+import { formatBalanceForDisplay } from "@/lib/wallet-utils"
 
 export function SwapInterface() {
   const [swapMode, setSwapMode] = useState<"instant" | "limit">("instant")
@@ -31,6 +32,7 @@ export function SwapInterface() {
     isConnected, 
     address, 
     balance, 
+    balanceLoading,
     formatAddress 
   } = useWallet()
 
@@ -117,7 +119,7 @@ export function SwapInterface() {
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">From</label>
                       <span className="text-xs text-muted-foreground">
-                        Balance: {balance ? `${parseFloat(balance).toFixed(4)} ETH` : '0.0000 ETH'}
+                        Balance: {balanceLoading ? 'Loading...' : formatBalanceForDisplay(balance)}
                       </span>
                     </div>
                     <div className="relative">

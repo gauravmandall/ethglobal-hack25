@@ -1,8 +1,21 @@
 export function formatBalance(balance: string, decimals: number = 4): string {
+  if (!balance || balance === '0') return '0.0000'
+  
   const num = parseFloat(balance)
+  if (isNaN(num)) return '0.0000'
   if (num === 0) return '0.0000'
   if (num < 0.0001) return '< 0.0001'
   return num.toFixed(decimals)
+}
+
+export function formatBalanceForDisplay(balance: string): string {
+  if (!balance || balance === '0') return '0.0000 ETH'
+  
+  const num = parseFloat(balance)
+  if (isNaN(num)) return '0.0000 ETH'
+  if (num === 0) return '0.0000 ETH'
+  if (num < 0.0001) return '< 0.0001 ETH'
+  return `${num.toFixed(4)} ETH`
 }
 
 export function getBalanceInUSD(balance: string, ethPrice: number = 2450): string {

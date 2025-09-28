@@ -32,10 +32,13 @@ export function WalletStatsDropdown({ className }: WalletStatsDropdownProps) {
   const { 
     address, 
     balance, 
+    balanceLoading,
+    balanceError,
     chainId, 
     connector, 
     formatAddress, 
-    disconnectWallet 
+    disconnectWallet,
+    refreshBalance
   } = useWallet()
 
   // Close dropdown when clicking outside
@@ -67,11 +70,13 @@ export function WalletStatsDropdown({ className }: WalletStatsDropdownProps) {
 
   const handleRefreshBalance = async () => {
     setRefreshing(true)
-    // In a real app, you might want to refetch the balance here
-    // For now, we'll just simulate a refresh
-    setTimeout(() => {
+    try {
+      await refreshBalance()
+    } catch (error) {
+      console.error('Failed to refresh balance:', error)
+    } finally {
       setRefreshing(false)
-    }, 1000)
+    }
   }
 
   const networkInfo = getNetworkInfo(chainId || 1)
@@ -131,20 +136,26 @@ export function WalletStatsDropdown({ className }: WalletStatsDropdownProps) {
                   variant="ghost" 
                   size="sm" 
                   onClick={handleRefreshBalance}
-                  disabled={refreshing}
+                  disabled={refreshing || balanceLoading}
                   className="h-6 w-6 p-0"
                 >
-                  <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3 h-3 ${(refreshing || balanceLoading) ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-mono text-lg">{formatBalance(balance)} ETH</span>
+                    <span className="font-mono text-lg">
+                      {balanceLoading ? 'Loading...' : 
+                       balanceError ? 'Error' : 
+                       `${formatBalance(balance)} ETH`}
+                    </span>
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    ≈ ${getBalanceInUSD(balance)}
+                    {balanceLoading ? '...' : 
+                     balanceError ? 'Failed to load' : 
+                     `≈ $${getBalanceInUSD(balance)}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">

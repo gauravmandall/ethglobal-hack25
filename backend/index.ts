@@ -1050,6 +1050,47 @@ app.post(
   }
 );
 
+// Balance endpoint
+app.get(
+  "/api/balance/:chainId/:walletAddress",
+  [
+    param("chainId").isNumeric().withMessage("Chain ID must be a number"),
+    param("walletAddress").isEthereumAddress().withMessage("Invalid wallet address"),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: "Validation failed",
+          details: errors.array(),
+        });
+      }
+
+      const { chainId, walletAddress } = req.params;
+      
+      console.log(`💰 Fetching balance for ${walletAddress} on chain ${chainId}`);
+      
+      const balanceData = await fusionService.getBalances(chainId, walletAddress);
+      
+      res.json({
+        success: true,
+        data: balanceData,
+        walletAddress,
+        chainId: parseInt(chainId),
+      });
+    } catch (error: any) {
+      console.error("❌ Balance fetch error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch balance",
+        message: error.message || "Unknown error occurred",
+      });
+    }
+  }
+);
+
 app.listen(PORT, () => {
   console.log(`🚀 1inch Fusion+ API server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
