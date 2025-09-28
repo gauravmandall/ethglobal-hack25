@@ -13,6 +13,7 @@ import { OrderBook } from "./order-book"
 import { PriceChart } from "./price-chart"
 import { RecentTrades } from "./recent-trades"
 import { WalletConnectionDialog } from "./wallet-connection-dialog"
+import { useWallet } from "@/hooks/use-wallet"
 
 export function SwapInterface() {
   const [swapMode, setSwapMode] = useState<"instant" | "limit">("instant")
@@ -22,9 +23,17 @@ export function SwapInterface() {
   const [toAmount, setToAmount] = useState("")
   const [limitPrice, setLimitPrice] = useState("")
   const [slippage, setSlippage] = useState("0.5")
-  const [isWalletConnected, setIsWalletConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState("")
   const [showConnectionDialog, setShowConnectionDialog] = useState(false)
+  const [showWalletOptions, setShowWalletOptions] = useState(false)
+  
+  const { 
+    isConnected, 
+    address, 
+    balance, 
+    formatAddress, 
+    disconnectWallet,
+    connector 
+  } = useWallet()
 
   const handleSwapTokens = () => {
     setFromToken(toToken)
@@ -33,17 +42,13 @@ export function SwapInterface() {
     setToAmount(fromAmount)
   }
 
-  const handleConnectWallet = async () => {
-    // Simulate wallet connection
-    const mockAddress = "0x1234567890abcdef1234567890abcdef12345678"
-    setWalletAddress(mockAddress)
-    setIsWalletConnected(true)
+  const handleConnectWallet = () => {
+    setShowWalletOptions(true)
     setShowConnectionDialog(true)
   }
 
   const handleDisconnectWallet = () => {
-    setIsWalletConnected(false)
-    setWalletAddress("")
+    disconnectWallet()
   }
 
   return (
@@ -60,7 +65,7 @@ export function SwapInterface() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {isWalletConnected ? (
+          {isConnected ? (
             <>
               <Badge variant="outline" className="gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -68,7 +73,7 @@ export function SwapInterface() {
               </Badge>
               <Button variant="outline" size="sm" onClick={handleDisconnectWallet}>
                 <Wallet className="w-4 h-4 mr-2" />
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                {address ? formatAddress(address) : '0x0000...0000'}
               </Button>
             </>
           ) : (
@@ -84,7 +89,7 @@ export function SwapInterface() {
         {/* Main Trading Interface */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6">
-            {!isWalletConnected ? (
+            {!isConnected ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Wallet className="w-16 h-16 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Connect Your Wallet</h3>
@@ -119,7 +124,9 @@ export function SwapInterface() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">From</label>
-                      <span className="text-xs text-muted-foreground">Balance: 2.5 ETH</span>
+                      <span className="text-xs text-muted-foreground">
+                        Balance: {balance ? `${parseFloat(balance).toFixed(4)} ETH` : '0.0000 ETH'}
+                      </span>
                     </div>
                     <div className="relative">
                       <Input
@@ -269,7 +276,7 @@ export function SwapInterface() {
           </Card>
 
           {/* Price Chart */}
-          {isWalletConnected && <PriceChart />}
+          {isConnected && <PriceChart />}
         </div>
 
         {/* Sidebar */}
@@ -297,17 +304,21 @@ export function SwapInterface() {
           </Card>
 
           {/* Order Book */}
-          {isWalletConnected && <OrderBook />}
+          {isConnected && <OrderBook />}
 
           {/* Recent Trades */}
-          {isWalletConnected && <RecentTrades />}
+          {isConnected && <RecentTrades />}
         </div>
       </div>
 
       <WalletConnectionDialog
         open={showConnectionDialog}
-        onOpenChange={setShowConnectionDialog}
-        walletAddress={walletAddress}
+        onOpenChange={(open) => {
+          setShowConnectionDialog(open)
+          if (!open) setShowWalletOptions(false)
+        }}
+        walletAddress={address}
+        showWalletOptions={showWalletOptions}
       />
     </div>
   )
