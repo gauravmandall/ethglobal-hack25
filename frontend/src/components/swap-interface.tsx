@@ -13,6 +13,7 @@ import { OrderBook } from "./order-book"
 import { PriceChart } from "./price-chart"
 import { RecentTrades } from "./recent-trades"
 import { WalletConnectionDialog } from "./wallet-connection-dialog"
+import { WalletStatsDropdown } from "./wallet-stats-dropdown"
 import { useWallet } from "@/hooks/use-wallet"
 
 export function SwapInterface() {
@@ -30,9 +31,7 @@ export function SwapInterface() {
     isConnected, 
     address, 
     balance, 
-    formatAddress, 
-    disconnectWallet,
-    connector 
+    formatAddress 
   } = useWallet()
 
   const handleSwapTokens = () => {
@@ -45,10 +44,6 @@ export function SwapInterface() {
   const handleConnectWallet = () => {
     setShowWalletOptions(true)
     setShowConnectionDialog(true)
-  }
-
-  const handleDisconnectWallet = () => {
-    disconnectWallet()
   }
 
   return (
@@ -71,10 +66,7 @@ export function SwapInterface() {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 Connected
               </Badge>
-              <Button variant="outline" size="sm" onClick={handleDisconnectWallet}>
-                <Wallet className="w-4 h-4 mr-2" />
-                {address ? formatAddress(address) : '0x0000...0000'}
-              </Button>
+              <WalletStatsDropdown />
             </>
           ) : (
             <Button onClick={handleConnectWallet} className="gap-2">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useAccount, useConnect, useDisconnect, useBalance } from 'wagmi'
+import { useAccount, useConnect, useDisconnect, useBalance, useChainId } from 'wagmi'
 import { useCallback, useState } from 'react'
 import { formatEther } from 'viem'
 
@@ -19,6 +19,7 @@ export function useWallet() {
   const { data: balance } = useBalance({
     address: address,
   })
+  const currentChainId = useChainId()
   const [isConnecting, setIsConnecting] = useState(false)
 
   const connectWallet = useCallback(async (connectorId: string) => {
@@ -46,11 +47,11 @@ export function useWallet() {
     return {
       address,
       balance: balance ? formatEther(balance.value) : '0',
-      chainId: chainId || 1,
+      chainId: chainId || currentChainId || 1,
       isConnected,
       connector,
     }
-  }, [address, balance, chainId, isConnected, connector])
+  }, [address, balance, chainId, currentChainId, isConnected, connector])
 
   const formatAddress = useCallback((address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -60,7 +61,7 @@ export function useWallet() {
     // State
     address,
     isConnected,
-    chainId,
+    chainId: chainId || currentChainId,
     connector,
     balance: balance ? formatEther(balance.value) : '0',
     isConnecting,
