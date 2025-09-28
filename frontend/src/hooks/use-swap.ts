@@ -128,11 +128,27 @@ export function useSwap() {
     if (quoteData) {
       setQuote(quoteData);
       setQuoteError(null);
+
+      // If from token is USDC, set the to amount to the same value as from amount
+      if (swapParams.fromToken === "USDC" && swapParams.fromAmount) {
+        setQuote((prevQuote) => {
+          if (prevQuote) {
+            return {
+              ...prevQuote,
+              toToken: {
+                ...prevQuote.toToken,
+                amount: swapParams.fromAmount,
+              },
+            };
+          }
+          return prevQuote;
+        });
+      }
     } else if (quoteErrorData) {
       setQuoteError(quoteErrorData.message || "Failed to fetch quote");
       setQuote(null);
     }
-  }, [quoteData, quoteErrorData]);
+  }, [quoteData, quoteErrorData, swapParams.fromToken, swapParams.fromAmount]);
 
   const updateSwapParams = useCallback((params: Partial<SwapParams>) => {
     setSwapParams((prev) => ({ ...prev, ...params }));
@@ -148,15 +164,27 @@ export function useSwap() {
   }, []);
 
   const getExchangeRate = useCallback(() => {
-    if (!quote || !swapParams.fromAmount) return null;
+    if (
+      !quote ||
+      !swapParams.fromAmount ||
+      !quote.toToken ||
+      !quote.toToken.amount
+    )
+      return null;
 
     const fromAmount = parseFloat(swapParams.fromAmount);
+
+    // If from token is USDC, the exchange rate should be 1:1
+    if (swapParams.fromToken === "USDC") {
+      return 1;
+    }
+
     const toAmount = parseFloat(quote.toToken.amount);
 
     if (fromAmount <= 0) return null;
 
     return toAmount / fromAmount;
-  }, [quote, swapParams.fromAmount]);
+  }, [quote, swapParams.fromAmount, swapParams.fromToken]);
 
   const getPriceImpact = useCallback(() => {
     // This would need to be calculated based on market data

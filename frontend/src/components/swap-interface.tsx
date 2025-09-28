@@ -292,7 +292,10 @@ export function SwapInterface() {
                         To (Polygon)
                       </label>
                       <span className="text-xs text-muted-foreground">
-                        {quote
+                        {swapParams.fromToken === "USDC" &&
+                        swapParams.fromAmount
+                          ? `${swapParams.fromAmount} ${swapParams.toToken}`
+                          : quote && quote.toToken
                           ? `${quote.toToken.amount} ${quote.toToken.symbol}`
                           : "0.00"}
                       </span>
@@ -301,7 +304,12 @@ export function SwapInterface() {
                       <Input
                         type="number"
                         placeholder="0.0"
-                        value={quote?.toToken.amount || ""}
+                        value={
+                          swapParams.fromToken === "USDC" &&
+                          swapParams.fromAmount
+                            ? swapParams.fromAmount
+                            : quote?.toToken?.amount || ""
+                        }
                         readOnly
                         className="text-2xl font-mono h-16 pr-32 bg-muted/50"
                       />
@@ -339,9 +347,9 @@ export function SwapInterface() {
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Rate</span>
                         <span className="font-mono">
-                          1 Base {quote.fromToken.symbol} ={" "}
+                          1 Base {quote?.fromToken?.symbol || "Token"} ={" "}
                           {exchangeRate?.toFixed(6)} Polygon{" "}
-                          {quote.toToken.symbol}
+                          {quote?.toToken?.symbol || "Token"}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -466,7 +474,12 @@ export function SwapInterface() {
                         <Input
                           type="number"
                           placeholder="0.0"
-                          value={quote?.toToken.amount || ""}
+                          value={
+                            swapParams.fromToken === "USDC" &&
+                            swapParams.fromAmount
+                              ? swapParams.fromAmount
+                              : quote?.toToken?.amount || ""
+                          }
                           readOnly
                           className="font-mono h-12 pr-20 bg-muted/50"
                         />

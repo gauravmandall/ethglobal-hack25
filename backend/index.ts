@@ -11,6 +11,7 @@ import axios, { type AxiosResponse } from "axios";
 import { ethers } from "ethers";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import tokenMapping from "../chainTokenMapping.json";
 
 dotenv.config();
 
@@ -38,6 +39,28 @@ interface SubmitOrderRequest {
   extension?: string;
   quoteId: string;
   secretHashes: string[];
+}
+
+// Helper function to get token info by address and chain ID
+function getTokenInfoByAddress(address: string, chainId: number) {
+  const chainName =
+    tokenMapping.chainIdToName[
+      chainId.toString() as keyof typeof tokenMapping.chainIdToName
+    ];
+  if (!chainName) return null;
+
+  const chainTokens =
+    tokenMapping.chains[chainName as keyof typeof tokenMapping.chains]?.tokens;
+  if (!chainTokens) return null;
+
+  // Find token by address
+  for (const [symbol, tokenInfo] of Object.entries(chainTokens)) {
+    if ((tokenInfo as any).address.toLowerCase() === address.toLowerCase()) {
+      return { symbol, ...tokenInfo };
+    }
+  }
+
+  return null;
 }
 
 const app = express();
@@ -682,7 +705,39 @@ app.post(
         walletAddress,
         amount,
       });
-      res.json({ success: true, data: quote });
+
+      // Get token info from our mapping
+      const srcTokenInfo = getTokenInfoByAddress(srcToken, fromChainId);
+      const dstTokenInfo = getTokenInfoByAddress(dstToken, toChainId);
+
+      // Transform the 1inch API response to match frontend expectations
+      const transformedQuote = {
+        quoteId: quote.quoteId || crypto.randomUUID(),
+        fromToken: {
+          symbol: srcTokenInfo?.symbol || "Unknown",
+          name: srcTokenInfo?.name || "Unknown Token",
+          address: srcToken,
+          decimals: srcTokenInfo?.decimals || 18,
+          amount: amount,
+        },
+        toToken: {
+          symbol: dstTokenInfo?.symbol || "Unknown",
+          name: dstTokenInfo?.name || "Unknown Token",
+          address: dstToken,
+          decimals: dstTokenInfo?.decimals || 18,
+          amount: quote.dstTokenAmount
+            ? (
+                parseFloat(quote.dstTokenAmount) /
+                Math.pow(10, dstTokenInfo?.decimals || 18)
+              ).toString()
+            : "0",
+        },
+        estimatedGas: quote.estimatedGas || "0",
+        presets: quote.presets || {},
+        recommendedPreset: quote.recommendedPreset || "fast",
+      };
+
+      res.json({ success: true, data: transformedQuote });
     } catch (error) {
       next(error);
     }
@@ -1055,7 +1110,9 @@ app.get(
   "/api/balance/:chainId/:walletAddress",
   [
     param("chainId").isNumeric().withMessage("Chain ID must be a number"),
-    param("walletAddress").isEthereumAddress().withMessage("Invalid wallet address"),
+    param("walletAddress")
+      .isEthereumAddress()
+      .withMessage("Invalid wallet address"),
   ],
   async (req: Request, res: Response) => {
     try {
@@ -1069,11 +1126,16 @@ app.get(
       }
 
       const { chainId, walletAddress } = req.params;
-      
-      console.log(`💰 Fetching balance for ${walletAddress} on chain ${chainId}`);
-      
-      const balanceData = await fusionService.getBalances(chainId, walletAddress);
-      
+
+      console.log(
+        `💰 Fetching balance for ${walletAddress} on chain ${chainId}`
+      );
+
+      const balanceData = await fusionService.getBalances(
+        chainId,
+        walletAddress
+      );
+
       res.json({
         success: true,
         data: balanceData,
