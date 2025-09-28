@@ -33,6 +33,9 @@ import { WalletStatsDropdown } from "./wallet-stats-dropdown";
 import { useWallet } from "@/hooks/use-wallet";
 import { useSwap } from "@/hooks/use-swap";
 import { formatBalanceForDisplay } from "@/lib/wallet-utils";
+import { getTokenInfo } from "@/lib/token-utils";
+import { swapService } from "@/lib/swap-service";
+import { useWalletClient } from "wagmi";
 import axios from "axios";
 
 type SwapParams = {
@@ -55,9 +58,13 @@ export function SwapInterface() {
   const [slippage, setSlippage] = useState("0.5");
   const [showConnectionDialog, setShowConnectionDialog] = useState(false);
   const [showWalletOptions, setShowWalletOptions] = useState(false);
+  const [limitOrderSuccess, setLimitOrderSuccess] = useState(false);
+  const [limitOrderError, setLimitOrderError] = useState<string | null>(null);
+  const [isExecutingLimitOrder, setIsExecutingLimitOrder] = useState(false);
 
   const { isConnected, address, balance, balanceLoading, formatAddress } =
     useWallet();
+  const { data: walletClient } = useWalletClient();
 
   const {
     swapParams,
@@ -153,6 +160,128 @@ export function SwapInterface() {
     } catch (err: any) {
       console.error("Swap error:", err);
       throw err;
+    }
+  }
+
+  async function executeLimitOrder() {
+    if (
+      !address ||
+      !swapParams.fromChainId ||
+      !swapParams.toChainId ||
+      !swapParams.fromAmount ||
+      !limitPrice
+    ) {
+      setLimitOrderError(
+        "Please fill in all required fields for the limit order"
+      );
+      return;
+    }
+
+    if (!walletClient) {
+      setLimitOrderError("Wallet client not available");
+      return;
+    }
+
+    setLimitOrderError(null);
+    setLimitOrderSuccess(false);
+    setIsExecutingLimitOrder(true);
+
+    try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        "https://ethglobal-hack25.onrender.com";
+
+      // Get token info
+      const fromTokenInfo = getTokenInfo(
+        swapParams.fromToken,
+        swapParams.fromChainId
+      );
+      const toTokenInfo = getTokenInfo(
+        swapParams.toToken,
+        swapParams.toChainId
+      );
+
+      if (!fromTokenInfo || !toTokenInfo) {
+        throw new Error("Invalid token selection");
+      }
+
+      const fromAmountWei = swapService.toWei(
+        swapParams.fromAmount,
+        fromTokenInfo.decimals
+      );
+
+      // 1. Get quote
+      console.log("Getting quote for limit order...");
+      const { data: quoteRes } = await axios.post(`${baseUrl}/api/quote`, {
+        fromChainId: swapParams.fromChainId,
+        toChainId: swapParams.toChainId,
+        srcToken: fromTokenInfo.address,
+        dstToken: toTokenInfo.address,
+        amount: fromAmountWei,
+        walletAddress: address,
+      });
+      if (!quoteRes.success) throw new Error("Failed to fetch quote");
+      const quote = quoteRes.data;
+
+      // 2. Create limit order
+      console.log("Creating limit order...");
+      const { data: orderRes } = await axios.post(
+        `${baseUrl}/api/orders/create`,
+        {
+          fromChainId: swapParams.fromChainId,
+          toChainId: swapParams.toChainId,
+          srcToken: fromTokenInfo.address,
+          dstToken: toTokenInfo.address,
+          amount: fromAmountWei,
+          walletAddress: address,
+          preset: quote.recommendedPreset || "fast",
+        }
+      );
+      if (!orderRes.success) throw new Error("Failed to create limit order");
+
+      const {
+        order,
+        verifyingContract,
+        extension,
+        quoteId,
+        secretHashes,
+        srcChainId,
+        domain,
+        types,
+      } = orderRes.data;
+
+      // 3. Ask wallet to sign order (this will trigger wallet popup)
+      console.log("Requesting wallet signature for limit order...");
+
+      const signature = await walletClient.signTypedData({
+        domain,
+        types,
+        primaryType: "Order",
+        message: order,
+      });
+
+      // 4. Submit signed order
+      console.log("Submitting signed limit order...");
+      const { data: submitRes } = await axios.post(
+        `${baseUrl}/api/orders/submit`,
+        {
+          order,
+          srcChainId,
+          signature,
+          extension,
+          quoteId,
+          secretHashes,
+        }
+      );
+      if (!submitRes.success) throw new Error("Failed to submit limit order");
+
+      setLimitOrderSuccess(true);
+      console.log("Limit order executed successfully!", submitRes.data);
+    } catch (error: any) {
+      console.error("Limit order execution error:", error);
+      setLimitOrderError(error.message || "Failed to execute limit order");
+    } finally {
+      setIsExecutingLimitOrder(false);
     }
   }
 
@@ -547,8 +676,64 @@ export function SwapInterface() {
                     </div>
                   </div>
 
-                  <Button className="w-full h-12 text-lg font-semibold">
-                    Place Limit Order
+                  {/* Execution States */}
+                  {limitOrderError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">
+                        {limitOrderError}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setLimitOrderError(null)}
+                        className="ml-auto"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+
+                  {limitOrderSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-sm text-green-700 font-medium">
+                          Limit order placed successfully!
+                        </span>
+                        <div className="text-xs text-green-600 font-mono mt-1">
+                          Your order has been submitted and is waiting for
+                          execution.
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setLimitOrderSuccess(false)}
+                        className="ml-auto"
+                      >
+                        New Order
+                      </Button>
+                    </div>
+                  )}
+
+                  <Button
+                    className="w-full h-12 text-lg font-semibold"
+                    disabled={!canSwap || isExecutingLimitOrder}
+                    onClick={executeLimitOrder}
+                  >
+                    {isExecutingLimitOrder ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Executing Limit Order...
+                      </>
+                    ) : isLoadingQuote ? (
+                      "Getting Quote..."
+                    ) : (
+                      "Place Limit Order"
+                    )}
                   </Button>
                 </TabsContent>
               </Tabs>
